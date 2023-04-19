@@ -84,8 +84,8 @@ def parse_book_page(book_id, domin, image_folder_name):
         "photo_url": photo_url,
         "genre": genre,
         "comments": comments,
-
     }
+    return book_info
 
 
 def download_book(domin, book_id, books_folder_name, image_folder_name):
@@ -101,7 +101,9 @@ def download_book(domin, book_id, books_folder_name, image_folder_name):
         response = get_page(url, params=params)
         check_for_redirect(response)
 
-        books_path_file = os.path.join(books_folder_name, f"{book_name}.txt")
+        book_info = parse_book_page(book_id, domin, image_folder_name)
+
+        books_path_file = os.path.join(books_folder_name, f"{book_info['book_name']}.txt")
 
         # with open(books_path_file, "w", encoding="utf-8") as book:
         #    book.write(response.text)
