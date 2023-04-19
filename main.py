@@ -1,7 +1,7 @@
 import os
 import pathlib
 from itertools import count
-from urllib.parse import urljoin, urlsplit
+import argparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -20,15 +20,6 @@ def get_page(page_url, params=None):
 def check_for_redirect(response):
     if response.history:
         raise requests.exceptions.HTTPError
-
-
-def get_book_name(soup):
-    title_tag = soup.find('h1')
-    book_name = sanitize_filename("_".join(title_tag.text.split('   ::   ')[0].split(" ")).strip())
-
-    book_name = check_same_name(book_name)
-
-    return book_name
 
 
 def get_photo_url(page_url, soup, filename, folder_name):
@@ -72,7 +63,11 @@ def parse_book_page(book_id, domin, image_folder_name):
     page = get_page(page_url, )
     soup = BeautifulSoup(page.text, 'lxml')
 
-    book_name = get_book_name(soup)
+    title_tag = soup.find('h1')
+
+    book_name = sanitize_filename("_".join(title_tag.text.split('   ::   ')[0].split(" ")).strip())
+
+    book_file_name = check_same_name(book_name)
 
     photo_url = urljoin(page_url, soup.find("div", class_="bookimage").find('img')['src'])
 
@@ -81,6 +76,7 @@ def parse_book_page(book_id, domin, image_folder_name):
     comments = get_comments(soup)
     book_info = {
         "book_name": book_name,
+        "book_file_name": book_file_name,
         "photo_url": photo_url,
         "genre": genre,
         "comments": comments,
@@ -103,7 +99,7 @@ def download_book(domin, book_id, books_folder_name, image_folder_name):
 
         book_info = parse_book_page(book_id, domin, image_folder_name)
 
-        books_path_file = os.path.join(books_folder_name, f"{book_info['book_name']}.txt")
+        books_path_file = os.path.join(books_folder_name, f"{book_info['book_file_name']}.txt")
 
         # with open(books_path_file, "w", encoding="utf-8") as book:
         #    book.write(response.text)
@@ -113,13 +109,24 @@ def download_book(domin, book_id, books_folder_name, image_folder_name):
 
 
 def main():
+
+    parser = argparse.ArgumentParser(
+        description='Описание что делает программа'
+    )
+
+    parser.add_argument('start_id', help='Ваша ссылка')
+    parser.add_argument('end_id', help='Ваша ссылка')
+    args = parser.parse_args()
+    start_id = args.start_id
+    end_id = args.end_id
+
     books_folder_name = "books"
     pathlib.Path(books_folder_name).mkdir(parents=True, exist_ok=True)
 
     image_folder_name = "imge"
     pathlib.Path(image_folder_name).mkdir(parents=True, exist_ok=True)
 
-    for book_id in range(1, 10):
+    for book_id in range(start_id, end_id):
         domin = 'https://tululu.org'
         download_book(domin, book_id, books_folder_name, image_folder_name)
 
