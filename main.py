@@ -2,6 +2,7 @@ import os
 import pathlib
 from itertools import count
 import argparse
+from urllib.parse import urlsplit, urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,15 +23,15 @@ def check_for_redirect(response):
         raise requests.exceptions.HTTPError
 
 
-def get_photo_url(page_url, soup, filename, folder_name):
-    img = get_page(photo_url).content
-    parse = urlsplit(photo_url)
+def get_photo_url(page_url, filename, folder_name):
+    img = get_page(page_url).content
+    parse = urlsplit(page_url)
     extension = os.path.splitext(parse.path)[-1]
 
     path = os.path.join(folder_name, f"{filename}{extension}")
+    with open(path, 'wb') as file:
+        file.write(img)
     return path
-    '''with open(path, 'wb') as file:
-        file.write(img)'''
 
 
 def get_comments(soup):
@@ -46,7 +47,6 @@ def check_same_name(book_name):
     verifiable_book_name = book_name
 
     for index in count(1):
-
         if verifiable_book_name in names_list:
             verifiable_book_name = f"{book_name}_{str(index)}"
         else:
@@ -73,14 +73,19 @@ def parse_book_page(book_id, domin, image_folder_name):
 
     genre = soup.find("span", class_="d_book").find("a").text
 
+    path_photo = get_photo_url(page_url, book_file_name, image_folder_name)
+
     comments = get_comments(soup)
+
     book_info = {
         "book_name": book_name,
         "book_file_name": book_file_name,
         "photo_url": photo_url,
+        "path_photo":path_photo,
         "genre": genre,
         "comments": comments,
     }
+
     return book_info
 
 
@@ -101,21 +106,17 @@ def download_book(domin, book_id, books_folder_name, image_folder_name):
 
         books_path_file = os.path.join(books_folder_name, f"{book_info['book_file_name']}.txt")
 
-        # with open(books_path_file, "w", encoding="utf-8") as book:
-        #    book.write(response.text)
+        with open(books_path_file, "w", encoding="utf-8") as book:
+            book.write(response.text)
 
     except requests.exceptions.HTTPError:
         pass
 
 
 def main():
-
-    parser = argparse.ArgumentParser(
-        description='Описание что делает программа'
-    )
-
-    parser.add_argument('start_id', help='Ваша ссылка')
-    parser.add_argument('end_id', help='Ваша ссылка')
+    parser = argparse.ArgumentParser
+    parser.add_argument('start_id', help='начальное id')
+    parser.add_argument('end_id', help='конечное id')
     args = parser.parse_args()
     start_id = args.start_id
     end_id = args.end_id
