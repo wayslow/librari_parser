@@ -29,7 +29,6 @@ def get_page(page_url, params=None):
         response = requests.get(page_url, params)
         check_for_redirect(response)
         response.raise_for_status()
-        raise requests.exceptions.ConnectionError()
         return response
 
     except requests.exceptions.ConnectionError:
