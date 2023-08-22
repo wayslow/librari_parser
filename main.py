@@ -33,9 +33,8 @@ def get_page(page_url, params=None):
 
 
 def check_for_redirect(response):
-    for redirect in response.history:
-        if redirect.status_code == 302:
-            raise requests.exceptions.HTTPError
+    if response.history:
+        raise requests.exceptions.HTTPError
 
 
 def parse_book_page(soup, page_url, names):
@@ -49,11 +48,11 @@ def parse_book_page(soup, page_url, names):
     book_name = sanitize_filename(f'{book_name}_{author}')
     file_name = check_same_name(book_name, names)
 
-    book_info={
-        "file_name":file_name,
-        "photo_url":photo_url,
-        "author":author,
-        "genre":genre,
+    book_info = {
+        "file_name": file_name,
+        "photo_url": photo_url,
+        "author": author,
+        "genre": genre,
     }
 
     return book_info
@@ -85,9 +84,10 @@ def main():
             book_text_page = get_page(book_text_url, params=params)
 
             book_text = book_text_page.text
-
-            page_url = f"{library_domin}/b{book_id}"
+            print("*" * 10)
+            page_url = f"{library_domin}/b{book_id}/"
             book_page = get_page(page_url)
+            print("*" * 10)
             soup = BeautifulSoup(book_page.text, 'lxml')
             book_info = parse_book_page(soup, page_url, names)
             file_name = book_info["file_name"]
