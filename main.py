@@ -9,15 +9,10 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 
 
-def download_book(book_text, books_path_file):
-    with open(books_path_file, "w", encoding="utf-8") as book:
-        book.write(book_text)
-
-
 def check_same_name(book_name, names, index=0):
     if book_name in names:
         book_name = f"{book_name}_{str(index)}"
-        check_same_name(book_name, names, index+1)
+        check_same_name(book_name, names, index + 1)
     else:
         names.append(book_name)
 
@@ -53,12 +48,15 @@ def parse_book_page(soup, page_url, names):
     book_name, author = title_tag.text.split('   ::   ')
     book_name = sanitize_filename(f'{book_name}_{author}')
     file_name = check_same_name(book_name, names)
-    return file_name, photo_url, genre, author
 
+    book_info={
+        "file_name":file_name,
+        "photo_url":photo_url,
+        "author":author,
+        "genre":genre,
+    }
 
-def download_img(path, img):
-    with open(path, 'wb') as file:
-        file.write(img)
+    return book_info
 
 
 def main():
@@ -91,18 +89,22 @@ def main():
             page_url = f"{library_domin}/b{book_id}"
             book_page = get_page(page_url)
             soup = BeautifulSoup(book_page.text, 'lxml')
-            file_name, photo_url, genre, author = parse_book_page(soup, page_url, names)
+            book_info = parse_book_page(soup, page_url, names)
+            file_name = book_info["file_name"]
+            photo_url = book_info["photo_url"]
 
             books_path_file = os.path.join(books_folder_name, f"{file_name}.txt")
 
             img = get_page(photo_url).content
             parse = urlsplit(photo_url)
             extension = os.path.splitext(parse.path)[-1]
-
             img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
 
-            download_book(book_text, books_path_file)
-            download_img(img_path_file, img)
+            with open(books_path_file, "w", encoding="utf-8") as book:
+                book.write(book_text)
+
+            with open(img_path_file, 'wb') as file:
+                file.write(img)
         except requests.exceptions.HTTPError:
             print("requests.exceptions.HTTPError")
 
