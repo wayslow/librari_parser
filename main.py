@@ -9,27 +9,18 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 
 
-def check_same_name(book_name, names, index=0):
-    if book_name in names:
-        book_name = f"{book_name}_{str(index)}"
-        check_same_name(book_name, names, index + 1)
-    else:
-        names.append(book_name)
-
-    return book_name
-
-
 def get_page(page_url, params=None):
-    try:
-        response = requests.get(page_url, params)
-        check_for_redirect(response)
-        response.raise_for_status()
-        return response
+    while True:
+        try:
+            response = requests.get(page_url, params)
+            check_for_redirect(response)
+            response.raise_for_status()
+            return response
+            break
+        except requests.exceptions.ConnectionError:
+            print("нет доступа к сети повторная попытка через 5 секунд")
+            sleep(5)
 
-    except requests.exceptions.ConnectionError:
-        print("нет доступа к сети повторная попытка через 5 секунд")
-        sleep(5)
-        get_page(page_url, params=None)
 
 
 def check_for_redirect(response):
@@ -37,7 +28,7 @@ def check_for_redirect(response):
         raise requests.exceptions.HTTPError
 
 
-def parse_book_page(soup, page_url, names):
+def parse_book_page(soup, page_url):
     book_image_div = soup.find("div", class_="bookimage")
     book_image_div = book_image_div.find('img')['src']
     photo_url = urljoin(page_url, book_image_div)
@@ -45,17 +36,45 @@ def parse_book_page(soup, page_url, names):
     title_tag = soup.find('h1')
     genre = soup.find(class_="d_book")
     book_name, author = title_tag.text.split('   ::   ')
-    book_name = sanitize_filename(f'{book_name}_{author}')
-    file_name = check_same_name(book_name, names)
+    file_name = sanitize_filename(f'{book_name}_{author}')
 
-    book_info = {
+    book_properties = {
         "file_name": file_name,
         "photo_url": photo_url,
         "author": author,
         "genre": genre,
     }
 
-    return book_info
+    return book_properties
+
+
+def book_downloud(book_id, library_domin, txt_path, books_folder_name, image_folder_name):
+    params = {
+        "id": book_id,
+    }
+    book_text_url = urljoin(library_domin, txt_path)
+    book_text_page = get_page(book_text_url, params=params)
+
+    book_text = book_text_page.text
+    page_url = f"{library_domin}/b{book_id}/"
+    book_page = get_page(page_url)
+    soup = BeautifulSoup(book_page.text, 'lxml')
+    book_properties = parse_book_page(soup, page_url)
+    file_name = book_properties["file_name"]
+    photo_url = book_properties["photo_url"]
+
+    books_path_file = os.path.join(books_folder_name, f"{file_name}_{book_id}.txt")
+
+    img = get_page(photo_url).content
+    parse = urlsplit(photo_url)
+    extension = os.path.splitext(parse.path)[-1]
+    img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
+
+    with open(books_path_file, "w", encoding="utf-8") as book:
+        book.write(book_text)
+
+    with open(img_path_file, 'wb') as file:
+        file.write(img)
 
 
 def main():
@@ -74,37 +93,9 @@ def main():
 
     library_domin = 'https://tululu.org'
     txt_path = "/txt.php"
-    names = []
     for book_id in range(start_id, end_id):
         try:
-            params = {
-                "id": book_id,
-            }
-            book_text_url = urljoin(library_domin, txt_path)
-            book_text_page = get_page(book_text_url, params=params)
-
-            book_text = book_text_page.text
-            print("*" * 10)
-            page_url = f"{library_domin}/b{book_id}/"
-            book_page = get_page(page_url)
-            print("*" * 10)
-            soup = BeautifulSoup(book_page.text, 'lxml')
-            book_info = parse_book_page(soup, page_url, names)
-            file_name = book_info["file_name"]
-            photo_url = book_info["photo_url"]
-
-            books_path_file = os.path.join(books_folder_name, f"{file_name}.txt")
-
-            img = get_page(photo_url).content
-            parse = urlsplit(photo_url)
-            extension = os.path.splitext(parse.path)[-1]
-            img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
-
-            with open(books_path_file, "w", encoding="utf-8") as book:
-                book.write(book_text)
-
-            with open(img_path_file, 'wb') as file:
-                file.write(img)
+            book_downloud(book_id, library_domin, txt_path, books_folder_name, image_folder_name)
         except requests.exceptions.HTTPError:
             print("requests.exceptions.HTTPError")
 
