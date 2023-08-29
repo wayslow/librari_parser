@@ -3,6 +3,7 @@ import pathlib
 from time import sleep
 import argparse
 from urllib.parse import urlsplit, urljoin
+from pprint import pprint
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,26 +23,35 @@ def get_page(page_url, params=None):
             sleep(5)
 
 
-
 def check_for_redirect(response):
     if response.history:
         raise requests.exceptions.HTTPError
 
 
-def parse_book_page(soup, page_url):
-    book_image_div = soup.find("div", class_="bookimage")
-    book_image_div = book_image_div.find('img')['src']
-    photo_url = urljoin(page_url, book_image_div)
 
-    title_tag = soup.find('h1')
-    genre = soup.find(class_="d_book")
-    book_name, author = title_tag.text.split('   ::   ')
+
+
+def parse_book_page(soup, page_url):
+
+    book_image_div = soup.select("div.bookimage img")[0]['src']
+    photo_url = urljoin(page_url, book_image_div)
+    genre = soup.select("span.d_book a")[0].text
+
+    title = soup.select("h1")[0].text
+
+    book_name, author = title.split('   ::   ')
     file_name = sanitize_filename(f'{book_name}_{author}')
 
+    comments_tags = soup.select("div.texts")
+
+    coments = []
+    for comments_tag in comments_tags:
+        coments.append(comments_tag.find("span").text)
     book_properties = {
         "file_name": file_name,
         "photo_url": photo_url,
         "author": author,
+        "coments": coments,
         "genre": genre,
     }
 
@@ -69,12 +79,14 @@ def book_downloud(book_id, library_domin, txt_path, books_folder_name, image_fol
     parse = urlsplit(photo_url)
     extension = os.path.splitext(parse.path)[-1]
     img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
-
+    book_properties["img_path"] = img_path_file
+    book_properties["books_path"] = books_path_file
     with open(books_path_file, "w", encoding="utf-8") as book:
         book.write(book_text)
 
     with open(img_path_file, 'wb') as file:
         file.write(img)
+    return book_properties
 
 
 def main():
