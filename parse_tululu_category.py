@@ -3,13 +3,13 @@ import json
 import pathlib
 import argparse
 from time import sleep
-from pprint import pprint
 from urllib.parse import urlsplit, urljoin
 
 import requests
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 
+from catom_exsepsions import PageDontExist
 LIBRARY_DOMIN = 'https://tululu.org'
 TXT_PATH = "/txt.php"
 
@@ -18,7 +18,7 @@ def get_page(page_url, params=None):
     while True:
         try:
             response = requests.get(page_url, params)
-            check_for_redirect(response)
+            check_for_redirect(response, page_url)
             response.raise_for_status()
             return response
             break
@@ -28,9 +28,9 @@ def get_page(page_url, params=None):
             sleep(5)
 
 
-def check_for_redirect(response):
+def check_for_redirect(response, page_url):
     if response.history:
-        raise requests.exceptions.HTTPError
+        raise PageDontExist(page_url)
 
 
 def parse_book_page(page_url):
@@ -93,12 +93,12 @@ def book_downloud(book_id, books_folder_name, book_properties, file_name):
 
 
 def maker_json(books_properties, file_path):
-    with open(file_path, encoding='utf8') as file:
+    with open(file_path, encoding="utf-8") as file:
         in_file_properties = json.load(file)
 
     books_properties = books_properties | in_file_properties
 
-    with open(file_path, 'w', encoding='utf8') as file:
+    with open(file_path, 'w', encoding="utf-8") as file:
         json.dump(books_properties, file, indent=4, ensure_ascii=False)
 
 
@@ -129,8 +129,14 @@ def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, 
                 book_properties = image_downloud(book_properties, image_folder_name, file_name)
 
             books_properties[book_id] = book_properties
+
     except requests.exceptions.HTTPError:
         print("requests.exceptions.HTTPError")
+    except KeyboardInterrupt:
+        print("переже временное откючение")
+        exit()
+    except PageDontExist:
+        print("некой книги нет")
     finally:
         maker_json(books_properties, json_file_path)
 
@@ -141,8 +147,8 @@ def main():
     parser.add_argument('--end_page', help='конечное страницы id', default=None, type=int)
     parser.add_argument('--category_id', help='id котегории', default=55, type=int)
     parser.add_argument('--dest_folder', help='путь к папке сохранеия', default="", type=str)
-    parser.add_argument('--skip_img', help=' сохранять изображение', action="store_true")
-    parser.add_argument('--skip_txt', help=' сохранять текст', action="store_true")
+    parser.add_argument('--skip_img', help=' сохранять изображение', action="store_false")
+    parser.add_argument('--skip_txt', help=' сохранять текст', action="store_false")
 
     args = parser.parse_args()
     start_id = args.start_page
@@ -151,22 +157,22 @@ def main():
     dest_folder = args.dest_folder
     skip_img = args.skip_img
     skip_txt = args.skip_txt
-
-    print(skip_img, skip_txt)
-
+    print(skip_img , skip_txt)
     books_folder_name = "books"
-    if not skip_txt:
+    if skip_txt:
         books_folder_name = os.path.join(dest_folder, books_folder_name)
         pathlib.Path(books_folder_name).mkdir(parents=True, exist_ok=True)
 
     image_folder_name = "imge"
-    if not skip_img:
-        image_folder_name = books_folder_name = os.path.join(dest_folder, image_folder_name)
+    if skip_img:
+        image_folder_name = os.path.join(dest_folder, image_folder_name)
         pathlib.Path(image_folder_name).mkdir(parents=True, exist_ok=True)
 
     pathlib.Path(dest_folder).mkdir(parents=True, exist_ok=True)
 
     json_file_path = os.path.join(dest_folder, "book_properties.json")
+    with open(json_file_path, 'w', encoding="utf-8") as file:
+        json.dump({}, file, indent=4, ensure_ascii=False)
 
     category_url = f"{LIBRARY_DOMIN}/l{category_id}/"
 
