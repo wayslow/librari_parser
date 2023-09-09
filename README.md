@@ -49,4 +49,4 @@ py parse_tululu.py --start_page {начальное id} --end_page {конечн
 ```
 py parse_tululu_category.py --start_page {id первой страницы} --end_page {id поседней страницы} --category_id {id котегории} --dest_folder {путь для загрузки}  [--skip_img] [--skip_txt]
 ```
-у вас создадутся 2 папки `books`(c книгами) и `image` (с обложками книг)
+у вас создадутся 2 папки `books`(c книгами) и `image` (с обложками книг) в папке указанной в аргументе `--dest_folder`
