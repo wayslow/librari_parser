@@ -17,10 +17,12 @@ def get_page(page_url, params=None):
     while True:
         try:
             response = requests.get(page_url, params)
+            print(response.url)
             check_for_redirect(response)
             response.raise_for_status()
             return response
             break
+
         except requests.exceptions.ConnectionError:
             print("нет доступа к сети повторная попытка через 5 секунд")
             sleep(5)
@@ -90,9 +92,15 @@ def book_downloud(book_id, books_folder_name, book_properties, file_name):
     return book_properties
 
 
-def maker_json(books_properties):
-    with open("book_properties.json", "w", encoding='utf8') as file:
-        json.dump(books_properties, file, indent=4, ensure_ascii=False)
+def maker_json(books_properties, file_path):
+    with open(file_path, encoding='utf8') as file:
+        data = json.load(file)
+
+    print(data["values"])
+    exit()
+    with open(file_path, 'w',  encoding='utf8') as file:
+        json.dump(data, file, indent=4, ensure_ascii=False)
+
 
 
 def find_end_id(category_url):
@@ -102,24 +110,31 @@ def find_end_id(category_url):
     return int(end_id)
 
 
-def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, skip_imgs):
+def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, skip_imgs, json_file_path):
     books_properties = {}
-    category_page = get_page(category_url).text
-    soup = BeautifulSoup(category_page, "lxml")
+    try:
+        category_page = get_page(category_url).text
 
-    books_table = soup.select("table.d_book")
+        soup = BeautifulSoup(category_page, "lxml")
 
-    for book in books_table:
-        book_id = book.select("a")[0]["href"][2:-1]
-        page_url = f"{LIBRARY_DOMIN}/b{book_id}/"
-        book_properties = parse_book_page(page_url)
-        file_name = book_properties["file_name"]
-        if skip_txt:
-            book_properties = book_downloud(book_id, books_folder_name, book_properties, file_name)
-        if skip_imgs:
-            book_properties = image_downloud(book_properties, image_folder_name, file_name)
+        books_table = soup.select("table.d_book")
 
-        books_properties[book_id] = book_properties
+        for book in books_table:
+            book_id = book.select("a")[0]["href"][2:-1]
+            page_url = f"{LIBRARY_DOMIN}/b{book_id}/"
+            book_properties = parse_book_page(page_url)
+            file_name = book_properties["file_name"]
+            if skip_txt:
+                book_properties = book_downloud(book_id, books_folder_name, book_properties, file_name)
+            if skip_imgs:
+                book_properties = image_downloud(book_properties, image_folder_name, file_name)
+
+            books_properties[book_id] = book_properties
+    except requests.exceptions.HTTPError:
+        print("requests.exceptions.HTTPError")
+    finally:
+        print(books_properties)
+        maker_json(books_properties, json_file_path)
 
 
 def main():
@@ -136,32 +151,32 @@ def main():
     dest_folder = args.dest_folder
     skip_imgs = args.skip_imgs
     skip_txt = args.skip_txt
-    print(skip_imgs, skip_txt)
-    books_folder_name = os.path.join(dest_folder, "books")
-    pathlib.Path(books_folder_name).mkdir(parents=True, exist_ok=True)
 
-    image_folder_name = books_folder_name = os.path.join(dest_folder, "image")
-    pathlib.Path(image_folder_name).mkdir(parents=True, exist_ok=True)
+    books_folder_name = "books"
+    if not skip_txt:
+        books_folder_name = os.path.join(dest_folder, books_folder_name)
+        pathlib.Path(books_folder_name).mkdir(parents=True, exist_ok=True)
+
+    image_folder_name = "imge"
+    if not skip_imgs:
+        image_folder_name = books_folder_name = os.path.join(dest_folder, image_folder_name)
+        pathlib.Path(image_folder_name).mkdir(parents=True, exist_ok=True)
+
+    pathlib.Path(dest_folder).mkdir(parents=True, exist_ok=True)
+
+    json_file_path = os.path.join(dest_folder, "book_properties.json")
 
     category_id = "55"
 
-    books_properties = {}
-
     category_url = f"{LIBRARY_DOMIN}/l{category_id}/"
-
     if not end_id:
         end_id = find_end_id(category_url)
-    print(start_id, end_id)
+
     for page_id in range(start_id, end_id):
+        print(page_id)
+        category_page_url = f"{category_url}{page_id}/"
 
-        category_url = f"{category_url}{page_id}/"
-
-        try:
-            catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, skip_imgs)
-
-        except requests.exceptions.HTTPError:
-            print("requests.exceptions.HTTPError")
-    maker_json(books_properties)
+        catrgory_pars(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_imgs, json_file_path)
 
 
 if __name__ == '__main__':
