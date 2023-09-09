@@ -1,9 +1,10 @@
 import os
-import pathlib
-from time import sleep
-import argparse
-from urllib.parse import urlsplit, urljoin
 import json
+import pathlib
+import argparse
+from time import sleep
+from pprint import pprint
+from urllib.parse import urlsplit, urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -17,7 +18,6 @@ def get_page(page_url, params=None):
     while True:
         try:
             response = requests.get(page_url, params)
-            print(response.url)
             check_for_redirect(response)
             response.raise_for_status()
             return response
@@ -94,23 +94,22 @@ def book_downloud(book_id, books_folder_name, book_properties, file_name):
 
 def maker_json(books_properties, file_path):
     with open(file_path, encoding='utf8') as file:
-        data = json.load(file)
+        in_file_properties = json.load(file)
 
-    print(data["values"])
-    exit()
-    with open(file_path, 'w',  encoding='utf8') as file:
-        json.dump(data, file, indent=4, ensure_ascii=False)
+    books_properties = books_properties | in_file_properties
 
+    with open(file_path, 'w', encoding='utf8') as file:
+        json.dump(books_properties, file, indent=4, ensure_ascii=False)
 
 
 def find_end_id(category_url):
     category_page = get_page(category_url).text
     soup = BeautifulSoup(category_page, "lxml")
-    end_id = soup.select(" a.npage")[-1].text
+    end_id = soup.select("a.npage")[-1].text
     return int(end_id)
 
 
-def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, skip_imgs, json_file_path):
+def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, skip_img, json_file_path):
     books_properties = {}
     try:
         category_page = get_page(category_url).text
@@ -126,31 +125,34 @@ def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, 
             file_name = book_properties["file_name"]
             if skip_txt:
                 book_properties = book_downloud(book_id, books_folder_name, book_properties, file_name)
-            if skip_imgs:
+            if skip_img:
                 book_properties = image_downloud(book_properties, image_folder_name, file_name)
 
             books_properties[book_id] = book_properties
     except requests.exceptions.HTTPError:
         print("requests.exceptions.HTTPError")
     finally:
-        print(books_properties)
         maker_json(books_properties, json_file_path)
 
 
 def main():
     parser = argparse.ArgumentParser(description="скачивает книги по id с онлайн библиотеки tululu.org")
-    parser.add_argument('--start_page', help='начальное id', default=1, type=int)
-    parser.add_argument('--end_page', help='конечное id', default=None, type=int)
+    parser.add_argument('--start_page', help='начальное страницы id', default=1, type=int)
+    parser.add_argument('--end_page', help='конечное страницы id', default=None, type=int)
+    parser.add_argument('--category_id', help='id котегории', default=55, type=int)
     parser.add_argument('--dest_folder', help='путь к папке сохранеия', default="", type=str)
-    parser.add_argument('--skip_imgs', help=' сохранять изображение', action="store_true")
+    parser.add_argument('--skip_img', help=' сохранять изображение', action="store_true")
     parser.add_argument('--skip_txt', help=' сохранять текст', action="store_true")
 
     args = parser.parse_args()
     start_id = args.start_page
     end_id = args.end_page
+    category_id = args.category_id
     dest_folder = args.dest_folder
-    skip_imgs = args.skip_imgs
+    skip_img = args.skip_img
     skip_txt = args.skip_txt
+
+    print(skip_img, skip_txt)
 
     books_folder_name = "books"
     if not skip_txt:
@@ -158,7 +160,7 @@ def main():
         pathlib.Path(books_folder_name).mkdir(parents=True, exist_ok=True)
 
     image_folder_name = "imge"
-    if not skip_imgs:
+    if not skip_img:
         image_folder_name = books_folder_name = os.path.join(dest_folder, image_folder_name)
         pathlib.Path(image_folder_name).mkdir(parents=True, exist_ok=True)
 
@@ -166,17 +168,15 @@ def main():
 
     json_file_path = os.path.join(dest_folder, "book_properties.json")
 
-    category_id = "55"
-
     category_url = f"{LIBRARY_DOMIN}/l{category_id}/"
+
     if not end_id:
         end_id = find_end_id(category_url)
 
     for page_id in range(start_id, end_id):
-        print(page_id)
         category_page_url = f"{category_url}{page_id}/"
 
-        catrgory_pars(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_imgs, json_file_path)
+        catrgory_pars(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_img, json_file_path)
 
 
 if __name__ == '__main__':
