@@ -3,7 +3,6 @@ import pathlib
 from time import sleep
 import argparse
 from urllib.parse import urlsplit, urljoin
-from pprint import pprint
 
 import requests
 from bs4 import BeautifulSoup
@@ -28,11 +27,7 @@ def check_for_redirect(response):
         raise requests.exceptions.HTTPError
 
 
-
-
-
 def parse_book_page(soup, page_url):
-
     book_image_div = soup.select("div.bookimage img")[0]['src']
     photo_url = urljoin(page_url, book_image_div)
     genre = soup.select("span.d_book a")[0].text

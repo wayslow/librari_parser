@@ -2,7 +2,6 @@ import os
 import json
 import pathlib
 import argparse
-from time import sleep
 from urllib.parse import urlsplit, urljoin
 
 import requests
@@ -10,27 +9,10 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 
 from catom_exsepsions import PageDontExist
+from parse_tululu import get_page
+
 LIBRARY_DOMIN = 'https://tululu.org'
 TXT_PATH = "/txt.php"
-
-
-def get_page(page_url, params=None):
-    while True:
-        try:
-            response = requests.get(page_url, params)
-            check_for_redirect(response, page_url)
-            response.raise_for_status()
-            return response
-            break
-
-        except requests.exceptions.ConnectionError:
-            print("нет доступа к сети повторная попытка через 5 секунд")
-            sleep(5)
-
-
-def check_for_redirect(response, page_url):
-    if response.history:
-        raise PageDontExist(page_url)
 
 
 def parse_book_page(page_url):
@@ -109,7 +91,7 @@ def find_end_id(category_url):
     return int(end_id)
 
 
-def catrgory_pars(category_url, books_folder_name, image_folder_name, skip_txt, skip_img, json_file_path):
+def pars_category(category_url, books_folder_name, image_folder_name, skip_txt, skip_img, json_file_path):
     books_properties = {}
     try:
         category_page = get_page(category_url).text
@@ -147,8 +129,8 @@ def main():
     parser.add_argument('--end_page', help='конечное страницы id', default=None, type=int)
     parser.add_argument('--category_id', help='id котегории', default=55, type=int)
     parser.add_argument('--dest_folder', help='путь к папке сохранеия', default="", type=str)
-    parser.add_argument('--skip_img', help=' сохранять изображение', action="store_false")
-    parser.add_argument('--skip_txt', help=' сохранять текст', action="store_false")
+    parser.add_argument('--skip_img', help=' сохранять изображение', action="store_true")
+    parser.add_argument('--skip_txt', help=' сохранять текст', action="store_true")
 
     args = parser.parse_args()
     start_id = args.start_page
@@ -157,7 +139,6 @@ def main():
     dest_folder = args.dest_folder
     skip_img = args.skip_img
     skip_txt = args.skip_txt
-    print(skip_img , skip_txt)
     books_folder_name = "books"
     if skip_txt:
         books_folder_name = os.path.join(dest_folder, books_folder_name)
@@ -171,8 +152,8 @@ def main():
     pathlib.Path(dest_folder).mkdir(parents=True, exist_ok=True)
 
     json_file_path = os.path.join(dest_folder, "book_properties.json")
-    with open(json_file_path, 'w', encoding="utf-8") as file:
-        json.dump({}, file, indent=4, ensure_ascii=False)
+    pathlib.Path(json_file_path).unlink(missing_ok=True)
+    open(json_file_path, 'w', encoding="utf-8")
 
     category_url = f"{LIBRARY_DOMIN}/l{category_id}/"
 
@@ -182,7 +163,7 @@ def main():
     for page_id in range(start_id, end_id):
         category_page_url = f"{category_url}{page_id}/"
 
-        catrgory_pars(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_img, json_file_path)
+        pars_category(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_img, json_file_path)
 
 
 if __name__ == '__main__':
