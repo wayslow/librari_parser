@@ -8,6 +8,8 @@ import requests
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 
+from catom_exsepsions import PageDontExist
+
 
 def get_page(page_url, params=None):
     while True:
@@ -22,9 +24,9 @@ def get_page(page_url, params=None):
             sleep(5)
 
 
-def check_for_redirect(response):
+def check_for_redirect(response, ):
     if response.history:
-        raise requests.exceptions.HTTPError
+        raise PageDontExist
 
 
 def parse_book_page(soup, page_url):
@@ -53,7 +55,17 @@ def parse_book_page(soup, page_url):
     return book_properties
 
 
-def book_downloud(book_id, library_domin, txt_path, books_folder_name, image_folder_name):
+def image_download(img_path_file, img):
+    with open(img_path_file, 'wb') as file:
+        file.write(img)
+
+
+def book_download(books_path_file, book_text):
+    with open(books_path_file, "w", encoding="utf-8") as book:
+        book.write(book_text)
+
+
+def get_book_properties(book_id, library_domin, txt_path, books_folder_name, image_folder_name):
     params = {
         "id": book_id,
     }
@@ -76,11 +88,10 @@ def book_downloud(book_id, library_domin, txt_path, books_folder_name, image_fol
     img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
     book_properties["img_path"] = img_path_file
     book_properties["books_path"] = books_path_file
-    with open(books_path_file, "w", encoding="utf-8") as book:
-        book.write(book_text)
 
-    with open(img_path_file, 'wb') as file:
-        file.write(img)
+    book_download(books_path_file, book_text)
+    image_download(img_path_file, img)
+
     return book_properties
 
 
@@ -102,9 +113,14 @@ def main():
     txt_path = "/txt.php"
     for book_id in range(start_id, end_id):
         try:
-            book_downloud(book_id, library_domin, txt_path, books_folder_name, image_folder_name)
+            get_book_properties(book_id, library_domin, txt_path, books_folder_name, image_folder_name)
         except requests.exceptions.HTTPError:
             print("requests.exceptions.HTTPError")
+        except KeyboardInterrupt:
+            print("преждевременное отключение")
+            exit()
+        except PageDontExist:
+            print("некой книги нет")
 
 
 if __name__ == '__main__':
