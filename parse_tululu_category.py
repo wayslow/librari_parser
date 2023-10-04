@@ -107,7 +107,7 @@ def pars_category(category_url, books_folder_name, image_folder_name, skip_txt, 
         books_table = soup.select("table.d_book")  # получаем блок с книгами
 
         for book in books_table:  # парсим страницу и получаем book_properties
-            book_id = book.select("a")[0]["href"][2:-1]
+            book_id = book.select_one("a")["href"][2:-1]
 
             book_properties = get_book_properties(book_id)
 
