@@ -13,14 +13,11 @@ from catom_exsepsions import PageDontExist
 
 def get_page(page_url, params=None):
     while True:
-        try:
-            response = requests.get(page_url, params)
-            check_for_redirect(response, page_url,params)
-            response.raise_for_status()
-            return response
-        except requests.exceptions.ConnectionError:
-            print("нет доступа к сети повторная попытка через 5 секунд")
-            sleep(5)
+        response = requests.get(page_url, params)
+        check_for_redirect(response, page_url,params)
+        response.raise_for_status()
+        return response
+
 
 
 def check_for_redirect(response,page_url,params):
@@ -116,6 +113,7 @@ def main():
             print("requests.exceptions.HTTPError")
         except requests.exceptions.ConnectionError:
             print("requests.exceptions.ConnectionError")
+            sleep(5)
         except PageDontExist:
             print("некой книги нет")
 
