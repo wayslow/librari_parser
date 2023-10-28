@@ -2,6 +2,7 @@ import os
 import json
 import pathlib
 import argparse
+from time import sleep
 from urllib.parse import urlsplit, urljoin
 
 import requests
@@ -15,13 +16,9 @@ LIBRARY_DOMAIN = 'https://tululu.org'
 TXT_PATH = "/txt.php"
 
 
-def get_book_properties(book_id):
-    page_url = f"{LIBRARY_DOMAIN}/b{book_id}/"
-
-    book_page = get_page(page_url)
-    soup = BeautifulSoup(book_page.text, 'lxml')
-
+def get_book_properties(soup, page_url):
     book_image_div = soup.select_one("div.bookimage img")['src']
+
     photo_url = urljoin(page_url, book_image_div)
     genre = soup.select_one("span.d_book a").text
 
@@ -32,34 +29,26 @@ def get_book_properties(book_id):
 
     comments_tags = soup.select("div.texts")
 
-    coments = []
-    for comments_tag in comments_tags:
-        coments.append(comments_tag.select_one("span").text)
+    comments = [comments_tag.select_one("span").text for comments_tag in comments_tags]
+
     book_properties = {
         "file_name": file_name,
         "photo_url": photo_url,
         "author": author,
-        "coments": coments,
+        "comments": comments,
         "genre": genre,
     }
 
     return book_properties
 
 
-def image_download(book_properties, image_folder_name, file_name):
-    photo_url = book_properties["photo_url"]
+def image_download(photo_url, img_path_file):
     img = get_page(photo_url).content
-    parse = urlsplit(photo_url)
-    extension = os.path.splitext(parse.path)[-1]
-    img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
-    book_properties["img_path"] = img_path_file
     with open(img_path_file, 'wb') as file:
         file.write(img)
 
-    return book_properties
 
-
-def book_download(book_id, books_folder_name, book_properties, file_name):
+def book_download(book_id, books_path_file, ):
     params = {
         "id": book_id,
     }
@@ -68,12 +57,8 @@ def book_download(book_id, books_folder_name, book_properties, file_name):
 
     book_text = book_text_page.text
 
-    books_path_file = os.path.join(books_folder_name, f"{file_name}_{book_id}.txt")
-    book_properties["books_path"] = books_path_file
     with open(books_path_file, "w", encoding="utf-8") as book:
         book.write(book_text)
-
-    return book_properties
 
 
 def make_json(books_properties, json_file_path):
@@ -89,37 +74,34 @@ def find_end_id(category_url):
 
 
 def parse_category(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_img, books_properties):
-
     category_page = get_page(category_page_url).text
-
     soup = BeautifulSoup(category_page, "lxml")
-
     books_table = soup.select("table.d_book")
 
     for book in books_table:
-        try:
-            book_id = book.select_one("a")["href"][2:-1]
+        book_id = book.select_one("a")["href"][2:-1]
 
-            book_properties = get_book_properties(book_id)
+        page_url = f"{LIBRARY_DOMAIN}/b{book_id}/"
+        book_page = get_page(page_url)
+        soup = BeautifulSoup(book_page.text, 'lxml')
 
-            file_name = book_properties["file_name"]
-            if not skip_txt:
-                book_properties = book_download(book_id, books_folder_name, book_properties, file_name)
-            if not skip_img:
-                book_properties = image_download(book_properties, image_folder_name, file_name)
+        book_properties = get_book_properties(soup, page_url)
 
-            books_properties[book_id] = book_properties
-        except requests.exceptions.HTTPError:
-            print("requests.exceptions.HTTPError")
-        except requests.exceptions.ConnectionError:
-            print("requests.exceptions.ConnectionError")
-        except PageDontExist as ex:
-            print(ex)
+        file_name = book_properties["file_name"]
+
+        if not skip_txt:
+            books_path_file = os.path.join(books_folder_name, f"{file_name}_{book_id}.txt")
+            book_properties["books_path"] = books_path_file
+
+        if not skip_img:
+            photo_url = book_properties["photo_url"]
+            parse = urlsplit(photo_url)
+            extension = os.path.splitext(parse.path)[-1]
+            img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
+            book_properties["img_path"] = img_path_file
+
+        books_properties[*book_id] = book_properties
     return books_properties
-
-
-
-
 
 
 def main():
@@ -155,17 +137,23 @@ def main():
     pathlib.Path(json_file_path).unlink(missing_ok=True)
 
     category_url = f"{LIBRARY_DOMAIN}/l{category_id}/"
-
-    if not end_id:
-        end_id = find_end_id(category_url)
     books_properties = {}
     try:
+        if not end_id:
+            end_id = find_end_id(category_url)
         for page_id in range(start_id, end_id):
             category_page_url = f"{category_url}{page_id}/"
-            books_properties = parse_category(category_page_url, books_folder_name, image_folder_name, skip_txt, skip_img, books_properties)
+            books_properties = parse_category(category_page_url, books_folder_name, image_folder_name, skip_txt,
+                                              skip_img, books_properties)
+    except requests.exceptions.HTTPError:
+        print("requests.exceptions.HTTPError")
+    except requests.exceptions.ConnectionError:
+        print("requests.exceptions.ConnectionError")
+        sleep(5)
+    except PageDontExist as ex:
+        print(ex)
     finally:
         make_json(books_properties, json_file_path)
-
 
 
 if __name__ == '__main__':
