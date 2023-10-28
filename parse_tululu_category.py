@@ -16,7 +16,7 @@ LIBRARY_DOMAIN = 'https://tululu.org'
 TXT_PATH = "/txt.php"
 
 
-def get_book_properties(soup, page_url):
+def get_book_properties(soup, page_url, skip_txt, skip_img, books_folder_name, image_folder_name, book_id):
     book_image_div = soup.select_one("div.bookimage img")['src']
 
     photo_url = urljoin(page_url, book_image_div)
@@ -38,6 +38,17 @@ def get_book_properties(soup, page_url):
         "comments": comments,
         "genre": genre,
     }
+
+    if not skip_txt:
+        books_path_file = os.path.join(books_folder_name, f"{file_name}_{book_id}.txt")
+        book_properties["books_path"] = books_path_file
+
+    if not skip_img:
+        photo_url = book_properties["photo_url"]
+        parse = urlsplit(photo_url)
+        extension = os.path.splitext(parse.path)[-1]
+        img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
+        book_properties["img_path"] = img_path_file
 
     return book_properties
 
@@ -87,18 +98,7 @@ def parse_category(category_page_url, books_folder_name, image_folder_name, skip
 
         book_properties = get_book_properties(soup, page_url)
 
-        file_name = book_properties["file_name"]
-
-        if not skip_txt:
-            books_path_file = os.path.join(books_folder_name, f"{file_name}_{book_id}.txt")
-            book_properties["books_path"] = books_path_file
-
-        if not skip_img:
-            photo_url = book_properties["photo_url"]
-            parse = urlsplit(photo_url)
-            extension = os.path.splitext(parse.path)[-1]
-            img_path_file = os.path.join(image_folder_name, f"{file_name}{extension}")
-            book_properties["img_path"] = img_path_file
+        get_book_properties(soup, page_url, skip_txt, skip_img, books_folder_name, image_folder_name, book_id)
 
         books_properties[*book_id] = book_properties
     return books_properties
@@ -143,8 +143,8 @@ def main():
             end_id = find_end_id(category_url)
         for page_id in range(start_id, end_id):
             category_page_url = f"{category_url}{page_id}/"
-            books_properties = parse_category(category_page_url, books_folder_name, image_folder_name, skip_txt,
-                                              skip_img, books_properties)
+            books_properties = parse_category(category_page_url, books_folder_name, image_folder_name,
+                                              skip_txt,skip_img, books_properties)
     except requests.exceptions.HTTPError:
         print("requests.exceptions.HTTPError")
     except requests.exceptions.ConnectionError:
